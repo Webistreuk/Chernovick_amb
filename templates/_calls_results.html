@@ -1,0 +1,54 @@
+<div id="calls-container">
+  {% for call in calls %}
+    <article class="call-card call-status-{{ call.status }}
+      {% if call.is_active %}call-is-active{% endif %}
+      {% if call.is_completed %}call-is-completed{% endif %}">
+      <h2 class="call-title">{{ call.patient_name }}</h2>
+      <p class="call-sub">Вызов {{ call.number }}</p>
+      <p class="call-address">📍 {{ call.address }}</p>
+      {% if call.distance_km is not none %}
+        <p class="call-distance">🚑 ≈ {{ call.distance_km }} км от скорой</p>
+      {% endif %}
+      <p class="call-phone">📞 {{ call.patient_phone }}</p>
+
+      {% if call.is_completed %}
+        <p class="call-badge call-badge-completed">
+          {% if call.result == 'false' %}🚫 Завершён как ложный{% else %}✅ Завершён{% endif %}
+        </p>
+      {% elif call.is_active %}
+        <p class="call-badge call-badge-active">🎯 Активный вызов</p>
+        <a href="/call/{{ call.id }}" class="btn btn-secondary btn-block">Перейти к активному вызову</a>
+      {% else %}
+        {% if active_call_id %}
+          <button type="button" class="btn btn-outline btn-block" disabled>
+            Взять нельзя — есть активный вызов
+          </button>
+        {% else %}
+          <form action="/call/{{ call.id }}/accept" method="POST" class="accept-form">
+            <button type="submit" class="btn btn-primary btn-block">Взять вызов</button>
+          </form>
+        {% endif %}
+      {% endif %}
+    </article>
+  {% else %}
+    <div class="notice notice-muted">
+      {% if q %}Ничего не найдено по запросу «{{ q_display }}»{% else %}Нет активных вызовов{% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+  <nav class="pagination" id="pagination" data-page="{{ page }}">
+    {% if page > 1 %}
+      <a class="btn btn-outline pagination-link" data-page="{{ page-1 }}" href="#">← Назад</a>
+    {% else %}
+      <span class="btn btn-outline btn-disabled">← Назад</span>
+    {% endif %}
+    <span class="pagination-info">{{ page }}/{{ total_pages }}</span>
+    {% if page < total_pages %}
+      <a class="btn btn-outline pagination-link" data-page="{{ page+1 }}" href="#">Вперёд →</a>
+    {% else %}
+      <span class="btn btn-outline btn-disabled">Вперёд →</span>
+    {% endif %}
+  </nav>
+{% endif %}

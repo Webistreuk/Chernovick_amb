@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Вызов {{ call.number }}{% endblock %}
+
+{% block css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/call_card.css') }}">
+{% endblock %}
+
+{% block content %}
+  <a href="/" class="btn btn-outline btn-back">← Назад к списку</a>
+
+  <div class="call-card-detail
+    {% if call.is_active %}call-is-active{% endif %}
+    {% if call.is_completed %}call-is-completed{% endif %}">
+
+    <h1 class="page-title">{{ call.number }} — {{ call.patient_name }}</h1>
+
+    <div class="call-meta">
+      <span>📍 {{ call.address }}</span>
+      <span>Статус:
+        <span class="badge badge-status-{{ call.status }}">{{ call.status }}</span>
+      </span>
+      {% if call.distance_km is not none %}
+        <span>🚑 ≈ {{ call.distance_km }} км от скорой</span>
+      {% endif %}
+    </div>
+
+    {% if call.is_completed %}
+      <div class="notice {% if call.result == 'false' %}notice-danger{% else %}notice-success{% endif %}">
+        {% if call.result == 'false' %}🚫 Вызов завершён как ложный{% else %}✅ Вызов завершён{% endif %}
+      </div>
+    {% elif call.is_active %}
+      <div class="notice notice-warning">🎯 Это ваш активный вызов</div>
+    {% elif active_call_id %}
+      <div class="notice notice-warning">
+        У вас уже активный вызов #{{ active_call_id }}. Завершите его сначала.
+      </div>
+    {% endif %}
+
+    <div class="call-actions">
+      <a href="/patient/{{ call.patient_id }}" class="btn btn-secondary btn-block">
+        👤 Карточка пациента
+      </a>
+
+      {% if call.is_active %}
+        <a href="/map/route/{{ call.id }}" class="btn btn-primary btn-block">
+          🧭 Построить оптимальный маршрут по адресу {{ call.address }}
+        </a>
+
+        <a href="/call/{{ call.id }}/info/new" class="btn btn-primary btn-block">
+          📝 Добавить информацию про пациента
+        </a>
+        <a href="/call/{{ call.id }}/problems/new" class="btn btn-primary btn-block">
+          ⚠ Проблемы на вызове
+        </a>
+
+        <form action="/call/{{ call.id }}/complete" method="POST"
+              onsubmit="return confirm('Вы уверены, что хотите завершить вызов?');">
+          <button type="submit" class="btn btn-secondary btn-block">✅ Вызов завершён</button>
+        </form>
+
+        <form action="/call/{{ call.id }}/false" method="POST"
+              onsubmit="return confirm('Отметить вызов как ложный?');">
+          <button type="submit" class="btn btn-outline btn-block">🚫 Ложный вызов</button>
+        </form>
+      {% elif not call.is_completed and not active_call_id %}
+        <form action="/call/{{ call.id }}/accept" method="POST">
+          <button type="submit" class="btn btn-primary btn-block">Взять вызов</button>
+        </form>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <h2 class="section-title">Информация про пациента</h2>
+  {% if patient_info %}
+    <ul class="record-list">
+      {% for i in patient_info %}
+        <li class="record-item {% if i.incorrect %}record-incorrect{% endif %}"
+            {% if not i.incorrect and call.is_active %}
+              data-mark-url="/call/{{ call.id }}/info/{{ i.id }}/mark_incorrect"
+            {% endif %}>
+          <span class="record-time">{{ i.time }}</span> — <strong>{{ i.type }}</strong>
+          {% if i.incorrect %}
+            <span class="record-badge">❌ Некорректная</span>
+          {% endif %}
+          <br>{{ i.text }}
+          {% if not i.incorrect and call.is_active %}
+            <div class="record-hint">Двойной клик — отметить как некорректную</div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="notice notice-muted">Записей пока нет</p>
+  {% endif %}
+
+  <h2 class="section-title">Проблемы на вызове</h2>
+  {% if problems %}
+    <ul class="record-list">
+      {% for p in problems %}
+        <li class="record-item {% if p.incorrect %}record-incorrect{% endif %}"
+            {% if not p.incorrect and call.is_active %}
+              data-mark-url="/call/{{ call.id }}/problems/{{ p.id }}/mark_incorrect"
+            {% endif %}>
+          <span class="record-time">{{ p.time }}</span> — <strong>{{ p.type }}</strong>
+          {% if p.incorrect %}
+            <span class="record-badge">❌ Некорректная</span>
+          {% endif %}
+          <br>{{ p.text }}
+          {% if not p.incorrect and call.is_active %}
+            <div class="record-hint">Двойной клик — отметить как некорректную</div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="notice notice-muted">Проблем не зафиксировано</p>
+  {% endif %}
+{% endblock %}
+
+{% block js %}
+  <script src="{{ url_for('static', filename='js/call_card.js') }}"></script>
+{% endblock %}

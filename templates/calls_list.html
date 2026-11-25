@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Список вызовов{% endblock %}
+
+{% block css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/calls_list.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+{% endblock %}
+
+{% block content %}
+  {% if active_call_id %}
+    <div class="active-call-banner">
+      ⚠ У вас активный вызов #{{ active_call_id }}.
+      <a href="/call/{{ active_call_id }}">Перейти к нему</a> — завершите его, чтобы взять новый.
+    </div>
+  {% endif %}
+
+  <div class="page-head">
+    <h1 class="page-title">Вызовы</h1>
+    <div class="page-actions">
+      <button type="button" id="map-toggle-btn" class="btn btn-outline">
+        🗺️ Карта <span class="map-toggle-state">[off]</span>
+      </button>
+      <button type="button" id="sort-distance-btn"
+              class="btn btn-outline {% if view == 'nearest' %}btn-active{% endif %}">
+        📍 Ближайший вызов
+      </button>
+      <a href="/" id="refresh-btn" class="btn btn-outline">🔄 Обновить</a>
+    </div>
+  </div>
+
+  <div id="content-area">
+    <form method="GET" action="/" class="search-form" id="search-form" onsubmit="return false;">
+      <div class="search-input-wrap" id="search-input-wrap">
+        <div id="phone-mask-view" class="phone-mask-view" hidden></div>
+        <input id="calls-search" name="q" class="search-input"
+               type="search" placeholder="Поиск"
+               value="{{ q }}">
+      </div>
+
+      <div class="search-field-wrap">
+        <button type="button" id="field-toggle" class="btn btn-outline search-field-btn">
+          <span id="field-label">
+            {% if field == 'address' %}Поиск по адресу
+            {% elif field == 'phone' %}Поиск по номеру телефона
+            {% else %}Поиск по ФИО{% endif %}
+          </span>
+          <span class="caret">▾</span>
+        </button>
+
+        <ul id="field-menu" class="search-field-menu" hidden>
+          <li><button type="button" data-field="name">Поиск по ФИО</button></li>
+          <li><button type="button" data-field="address">Поиск по адресу</button></li>
+          <li><button type="button" data-field="phone">Поиск по номеру телефона</button></li>
+        </ul>
+      </div>
+
+      <input type="hidden" name="field" id="field-input" value="{{ field }}">
+      <input type="hidden" name="view" id="view-input" value="{{ view }}">
+    </form>
+
+    <div id="results" data-view="{{ view }}">
+      {% include "_calls_results.html" %}
+    </div>
+  </div>
+
+  <div id="map" class="map-container"
+       data-active-call-id="{{ active_call_id or '' }}"
+       data-accept-id="{{ accept_id or '' }}"
+       {% if map_on %}data-init-map="1"{% endif %}
+       style="display: none;"></div>
+{% endblock %}
+
+{% block js %}
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="{{ url_for('static', filename='js/calls_list.js') }}"></script>
+{% endblock %}
