@@ -23,11 +23,4 @@ function showFlash(text, type = "info") {
   setTimeout(() => div.remove(), 5000);
 }
 
-// Регистрация Service Worker для кэша тайлов OSM
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/sw.js")
-      .catch((e) => console.warn("SW register:", e));
-  });
-}
+// Service Worker отключён — регистрация убрана

@@ -13,7 +13,7 @@
 
   if (typeof L === "undefined") {
     if (statusEl) statusEl.textContent =
-      "Ошибка: Leaflet не загружен. Проверьте static/vendor/leaflet/leaflet.js";
+      "Ошибка: Leaflet не загружен. Проверьте подключение к интернету.";
     console.error("route: L is undefined — Leaflet не подключён");
     return;
   }
@@ -33,11 +33,10 @@
 
   const map = L.map(mapEl, { zoomControl: true }).setView(toLatLng, 13);
 
-  // Локальный прокси тайлов (static/tiles через Flask)
-  L.tileLayer("/tiles/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "© OpenStreetMap contributors (локальный кэш)",
-  }).addTo(map);
+ L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "© OpenStreetMap contributors © CARTO",
+}).addTo(map);
 
   setTimeout(() => map.invalidateSize(), 200);
 

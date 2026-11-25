@@ -1,9 +1,7 @@
 import math
-import os
-import requests
 from flask import (
     Flask, render_template, jsonify, request,
-    redirect, url_for, flash, send_from_directory, Response, abort
+    redirect, url_for, flash
 )
 from datetime import datetime
 
@@ -22,19 +20,6 @@ PATIENT_INFO = []
 PROBLEMS = []
 _info_seq = 0
 _problem_seq = 0
-
-# ---------- Локальный кэш тайлов ----------
-TILES_DIR = os.path.join(app.root_path, "static", "tiles")
-os.makedirs(TILES_DIR, exist_ok=True)
-
-OSM_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-OSM_UA = "AmbulanceLocalMap/1.0 (contact: dev@example.com)"
-
-EMPTY_PNG = (
-    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
-    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff"
-    b"\xff?\x00\x05\xfe\x02\xfe\xa75\x81\x84\x00\x00\x00\x00IEND\xaeB`\x82"
-)
 
 
 def haversine_km(lat1, lng1, lat2, lng2):
@@ -177,36 +162,6 @@ def phone_mask_display(digits):
         else:
             out += ch
     return "+7 " + out
-
-
-# ---------- Прокси тайлов ----------
-@app.route("/tiles/<int:z>/<int:x>/<int:y>.png")
-def tile(z, x, y):
-    if not (0 <= z <= 19 and 0 <= x < 2**z and 0 <= y < 2**z):
-        abort(404)
-
-    path_dir = os.path.join(TILES_DIR, str(z), str(x))
-    file_name = f"{y}.png"
-    file_path = os.path.join(path_dir, file_name)
-
-    if os.path.isfile(file_path):
-        return send_from_directory(path_dir, file_name, mimetype="image/png")
-
-    try:
-        r = requests.get(
-            OSM_URL.format(z=z, x=x, y=y),
-            headers={"User-Agent": OSM_UA},
-            timeout=8,
-        )
-        if r.status_code == 200 and r.content:
-            os.makedirs(path_dir, exist_ok=True)
-            with open(file_path, "wb") as f:
-                f.write(r.content)
-            return Response(r.content, mimetype="image/png")
-    except requests.RequestException:
-        pass
-
-    return Response(EMPTY_PNG, mimetype="image/png")
 
 
 # ---------- Список вызовов ----------
@@ -487,14 +442,6 @@ def map_route(call_id):
     return render_template("map_route.html", call=enrich_call(call))
 
 
-@app.route("/sw.js")
-def service_worker():
-    resp = app.send_static_file("sw.js")
-    resp.headers["Service-Worker-Allowed"] = "/"
-    resp.headers["Content-Type"] = "application/javascript"
-    return resp
-
-
 @app.route("/api/case", methods=["POST"])
 def api_case():
     data = request.get_json() or request.form.to_dict()
@@ -503,9 +450,12 @@ def api_case():
 
 @app.errorhandler(404)
 def not_found(e):
+    path = request.path
+    if path.startswith(("/api/", "/static/")):
+        return ("Not Found", 404)
     flash("Страница не найдена", "warning")
     return redirect(url_for("calls_list"))
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, threaded=True)

@@ -3,7 +3,7 @@
 
 {% block css %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/map_route.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 {% endblock %}
 
 {% block content %}
@@ -17,7 +17,7 @@
       Определяем ваше местоположение…
     </div>
 
-    <div id="route-map" class="route-map"></div>
+    <div id="route-map" class="route-map" style="height:60vh; min-height:400px;"></div>
 
     <div class="route-actions">
       <button type="button" id="retry-geo-btn" class="btn btn-outline btn-block">
@@ -30,13 +30,6 @@
         🔄 Перестроить маршрут
       </button>
     </div>
-
-    <p class="route-hint">
-      Маршрут строится через публичный OSRM. При первом просмотре карта
-      кэшируется Service Worker'ом и далее работает без интернета.
-      Если браузер блокирует геолокацию — нажмите «Повторить запрос» или
-      укажите местоположение вручную кликом по карте.
-    </p>
   </div>
 
   <script id="route-data" type="application/json">
@@ -45,6 +38,6 @@
 {% endblock %}
 
 {% block js %}
-  <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="{{ url_for('static', filename='js/map_route.js') }}"></script>
 {% endblock %}

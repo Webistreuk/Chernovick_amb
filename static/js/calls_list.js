@@ -305,9 +305,10 @@
 
     if (!map) {
       map = L.map(mapEl).setView([43.585, 39.723], 12);
-      L.tileLayer("/tiles/{z}/{x}/{y}.png", {
+      // OSM-тайлы напрямую с CDN
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png", {
         maxZoom: 19,
-        attribution: "© OpenStreetMap contributors (локальный кэш)",
+        attribution: "© OpenStreetMap contributors © CARTO",
       }).addTo(map);
       startGeolocation();
     }
