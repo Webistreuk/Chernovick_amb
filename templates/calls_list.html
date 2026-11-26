@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Список вызовов{% endblock %}
+{% block body_class %}is-home{% endblock %}
+
+{% block bg_video %}
+<video id="home-bg-video" class="bg-video" autoplay muted loop playsinline preload="auto"
+       poster="{{ url_for('static', filename='video/home-bg.jpg') }}">
+  <source src="{{ url_for('static', filename='video/home-bg.mp4') }}" type="video/mp4">
+</video>
+{% endblock %}
 
 {% block css %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/calls_list.css') }}">
@@ -40,32 +48,6 @@
       </div>
     </div>
   {% endif %}
-
-  <section class="page-hero">
-    <div class="page-hero-main">
-      <h1 class="page-hero-title">
-        {% if current_user.role == 'doctor' and my_active_call %}Свободные вызовы
-        {% else %}Диспетчерская{% endif %}
-      </h1>
-      <p class="page-hero-sub">
-        {% if current_user.role in ('admin', 'superadmin') %}
-          Обзор вызовов, машин и маршрутов скорой помощи
-        {% else %}
-          Вызовы, которые можно взять
-        {% endif %}
-      </p>
-    </div>
-    <div class="page-hero-meta">
-      <div class="hero-stat">
-        <span class="hero-stat-value">{{ total }}</span>
-        <span class="hero-stat-label">вызовов</span>
-      </div>
-      <div class="hero-stat">
-        <span class="hero-stat-value">{{ page }}/{{ total_pages }}</span>
-        <span class="hero-stat-label">страница</span>
-      </div>
-    </div>
-  </section>
 
   <div class="page-head">
     <div class="page-actions">
@@ -209,4 +191,14 @@
 {% block js %}
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="{{ url_for('static', filename='js/calls_list.js') }}"></script>
+  <script>
+    (function () {
+      const bg = document.getElementById("home-bg-video");
+      if (bg) {
+        bg.playbackRate = 0.09;
+        bg.addEventListener("play", () => { bg.playbackRate = 0.09; });
+        bg.addEventListener("loadedmetadata", () => { bg.playbackRate = 0.09; });
+      }
+    })();
+  </script>
 {% endblock %}
