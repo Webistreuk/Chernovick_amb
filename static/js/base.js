@@ -1,4 +1,71 @@
 (function () {
+  function blockZoomHard() {
+    function blockKey(e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      const k = (e.key || "").toLowerCase();
+      const code = e.keyCode || e.which;
+      const zoomKeys = [
+        "+", "-", "=", "_", "add", "subtract", "0", "numpadadd", "numpadsubtract",
+      ];
+      if (
+        zoomKeys.includes(k) ||
+        code === 187 || code === 189 || code === 107 || code === 109 ||
+        code === 48 || code === 96
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+      }
+    }
+
+    function blockWheel(e) {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+      }
+    }
+
+    function blockGesture(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+
+    document.addEventListener("keydown", blockKey, { capture: true, passive: false });
+    window.addEventListener("keydown", blockKey, { capture: true, passive: false });
+    window.addEventListener("wheel", blockWheel, { capture: true, passive: false });
+    document.addEventListener("wheel", blockWheel, { capture: true, passive: false });
+
+    ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => {
+      document.addEventListener(ev, blockGesture, { passive: false });
+      window.addEventListener(ev, blockGesture, { passive: false });
+    });
+
+    document.addEventListener("touchmove", (e) => {
+      if (e.touches && e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    let lastTouchEnd = 0;
+    document.addEventListener("touchend", (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
+
+    document.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+    }, { passive: false });
+  }
+
+  blockZoomHard();
+
   function updateNetStatus() {
     const el = document.getElementById("net-status");
     if (!el) return;
@@ -15,22 +82,45 @@
   window.addEventListener("offline", updateNetStatus);
   updateNetStatus();
 
+  const userBtn = document.getElementById("app-user-btn");
+  const userDropdown = document.getElementById("app-user-dropdown");
+
+  if (userBtn && userDropdown) {
+    userBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = userDropdown.hidden;
+      userDropdown.hidden = !open;
+      userBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    document.addEventListener("click", (e) => {
+      if (!userDropdown.hidden &&
+          !userDropdown.contains(e.target) &&
+          e.target !== userBtn) {
+        userDropdown.hidden = true;
+        userBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !userDropdown.hidden) {
+        userDropdown.hidden = true;
+        userBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
   const FLASH_SHOW_MS = 4000;
   const FLASH_ANIM_MS = 1000;
 
   function attachFlashBehavior(el) {
     if (!el || el.dataset.flashReady === "1") return;
     el.dataset.flashReady = "1";
-
     el.classList.add("notice-enter");
-
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         el.classList.remove("notice-enter");
         el.classList.add("notice-visible");
       });
     });
-
     const timer = setTimeout(() => {
       el.classList.remove("notice-visible");
       el.classList.add("notice-leave");
@@ -38,7 +128,6 @@
         if (el.parentNode) el.parentNode.removeChild(el);
       }, FLASH_ANIM_MS);
     }, FLASH_SHOW_MS);
-
     el.addEventListener("click", () => {
       clearTimeout(timer);
       el.classList.remove("notice-visible");
@@ -185,6 +274,7 @@
     panel.classList.add("open");
     if (overlay) overlay.classList.add("open");
     panel.setAttribute("aria-hidden", "false");
+    if (userDropdown) userDropdown.hidden = true;
   }
   function closePanel() {
     if (!panel) return;

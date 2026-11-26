@@ -7,21 +7,51 @@
 {% endblock %}
 
 {% block content %}
-  {% if active_call_id %}
-    <div class="active-call-banner">
-      ⚠ У вас активный вызов #{{ active_call_id }}.
-      <a href="/call/{{ active_call_id }}">Перейти к нему</a> — завершите его, чтобы взять новый.
+  {% if current_user.role == 'doctor' and my_active_call %}
+    <section class="active-call-hero">
+      <div class="active-call-hero-head">
+        <span class="active-call-hero-badge">🎯 Ваш активный вызов</span>
+        <span class="active-call-hero-distance">
+          {% if my_active_call.distance_km is not none %}
+            🚑 ≈ {{ my_active_call.distance_km }} км
+          {% endif %}
+        </span>
+      </div>
+      <h1 class="active-call-hero-title">{{ my_active_call.patient_name }}</h1>
+      <p class="active-call-hero-address">📍 {{ my_active_call.address }}</p>
+      <p class="active-call-hero-phone">📞 {{ my_active_call.patient_phone }}</p>
+      <div class="active-call-hero-actions">
+        <a href="/call/{{ my_active_call.id }}" class="btn btn-primary btn-block">
+          Открыть вызов
+        </a>
+        <a href="/map/route/{{ my_active_call.id }}" class="btn btn-outline btn-block">
+          🧭 Маршрут
+        </a>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if current_user.role == 'doctor' and not my_active_call %}
+    <div class="doctor-idle-banner">
+      <span class="doctor-idle-icon" aria-hidden="true">🩺</span>
+      <div>
+        <strong>Нет активного вызова.</strong>
+        Возьмите вызов из списка ниже — он появится здесь как главный экран.
+      </div>
     </div>
   {% endif %}
 
   <section class="page-hero">
     <div class="page-hero-main">
-      <h1 class="page-hero-title">Диспетчерская</h1>
+      <h1 class="page-hero-title">
+        {% if current_user.role == 'doctor' and my_active_call %}Свободные вызовы
+        {% else %}Диспетчерская{% endif %}
+      </h1>
       <p class="page-hero-sub">
         {% if current_user.role in ('admin', 'superadmin') %}
           Обзор вызовов, машин и маршрутов скорой помощи
         {% else %}
-          Текущие вызовы и маршруты к пациентам
+          Вызовы, которые можно взять
         {% endif %}
       </p>
     </div>

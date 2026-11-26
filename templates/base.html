@@ -35,62 +35,68 @@
   <div class="app-scale">
     <header class="app-header">
       <div class="app-header-left">
-        <button id="settings-btn" class="app-nav-link" type="button"
-                aria-label="Настройки" title="Настройки">
-          <span aria-hidden="true">⚙</span> <span class="label">Настройки</span>
-        </button>
-
         {% if current_user %}
-          <form method="POST" action="{{ url_for('logout') }}" style="display:inline">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="app-nav-link" type="submit" title="Выйти">
-              <span aria-hidden="true">↩</span> <span class="label">Выйти</span>
+          <div class="app-user-menu" id="app-user-menu">
+            <button type="button" id="app-user-btn" class="app-user"
+                    aria-haspopup="true" aria-expanded="false"
+                    title="{{ current_user.name }}">
+              <span class="app-user-info">
+                <span class="app-user-name">{{ current_user.name }}</span>
+                <span class="app-user-role">
+                  {% if current_user.role == 'superadmin' %}Главный админ
+                  {% elif current_user.role == 'admin' %}Админ
+                  {% else %}Фельдшер{% endif %}
+                </span>
+              </span>
+              <span class="app-user-avatar" aria-hidden="true">
+                {{ current_user.name[:1]|upper }}
+              </span>
+              <span class="app-user-caret" aria-hidden="true">▾</span>
             </button>
-          </form>
+
+            <div class="app-user-dropdown" id="app-user-dropdown" hidden>
+              {% if current_user.role in ('admin', 'superadmin') %}
+                {% if request.path.startswith('/admin') %}
+                  <a class="app-user-dropdown-item" href="/">
+                    <span aria-hidden="true">🏠</span> На главную
+                  </a>
+                {% else %}
+                  <a class="app-user-dropdown-item" href="{{ url_for('admin_panel') }}">
+                    <span aria-hidden="true">🛡</span> Админ-панель
+                  </a>
+                {% endif %}
+              {% endif %}
+
+              <a class="app-user-dropdown-item"
+                 href="{{ doctor_portal_url or '#' }}"
+                 target="_blank" rel="noopener noreferrer">
+                <span aria-hidden="true">🩺</span> Портал врача
+              </a>
+
+              <button type="button" class="app-user-dropdown-item" id="settings-btn">
+                <span aria-hidden="true">⚙</span> Настройки
+              </button>
+
+              <div class="app-user-dropdown-sep"></div>
+
+              <form method="POST" action="{{ url_for('logout') }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button class="app-user-dropdown-item app-user-dropdown-danger" type="submit">
+                  <span aria-hidden="true">↩</span> Выйти
+                </button>
+              </form>
+            </div>
+          </div>
+        {% else %}
+          <button id="settings-btn" class="app-nav-link" type="button">
+            <span aria-hidden="true">⚙</span> <span class="label">Настройки</span>
+          </button>
         {% endif %}
 
         <span id="app-clock" class="app-clock" hidden>--:--:--</span>
       </div>
 
       <div class="app-header-right">
-        {% if current_user %}
-          <nav class="app-nav" aria-label="Основная навигация">
-            {% if current_user.role in ('admin', 'superadmin') %}
-              {% if request.path.startswith('/admin') %}
-                <a class="app-nav-link active" href="/" title="На главную">
-                  <span aria-hidden="true">🏠</span> <span class="label">На главную</span>
-                </a>
-              {% else %}
-                <a class="app-nav-link" href="{{ url_for('admin_panel') }}">
-                  <span aria-hidden="true">🛡</span> <span class="label">Админ-панель</span>
-                </a>
-              {% endif %}
-            {% endif %}
-
-            <a class="app-nav-link"
-               href="{{ doctor_portal_url or '#' }}"
-               target="_blank" rel="noopener noreferrer">
-              <span aria-hidden="true">🩺</span> <span class="label">Портал врача</span>
-            </a>
-          </nav>
-
-          <span class="app-nav-divider" aria-hidden="true"></span>
-
-          <div class="app-user" title="{{ current_user.name }}">
-            <span class="app-user-info">
-              <span class="app-user-name">{{ current_user.name }}</span>
-              <span class="app-user-role">
-                {% if current_user.role == 'superadmin' %}Главный админ
-                {% elif current_user.role == 'admin' %}Админ
-                {% else %}Фельдшер{% endif %}
-              </span>
-            </span>
-            <span class="app-user-avatar" aria-hidden="true">
-              {{ current_user.name[:1]|upper }}
-            </span>
-          </div>
-        {% endif %}
-
         <span id="net-status" class="net-badge net-online">
           <span>Онлайн</span>
         </span>
@@ -114,8 +120,7 @@
   <aside id="settings-panel" class="settings-panel" aria-hidden="true" aria-label="Настройки">
     <div class="settings-header">
       <h2 class="settings-title">Настройки</h2>
-      <button id="settings-close" class="settings-close" type="button"
-              aria-label="Закрыть">✕</button>
+      <button id="settings-close" class="settings-close" type="button" aria-label="Закрыть">✕</button>
     </div>
 
     <div class="settings-group">
@@ -147,19 +152,14 @@
         <input type="checkbox" id="set-clock-seconds">
         <span class="settings-toggle-text">Показывать секунды</span>
       </label>
-      <p class="settings-hint">Время берётся из устройства. Формат 24-часовой.</p>
     </div>
 
     <div class="settings-group">
-      <span class="settings-label">Экран (авто-тема)</span>
+      <span class="settings-label">Экран</span>
       <label class="settings-toggle">
         <input type="checkbox" id="set-auto-theme">
-        <span class="settings-toggle-text">Автоматически менять тему по времени</span>
+        <span class="settings-toggle-text">Авто-тема по времени</span>
       </label>
-      <p class="settings-hint">
-        <code>9:00–17:00</code> — светлая · <code>17:00–21:00</code> — серо-белая ·
-        <code>21:00–5:30</code> — тёмная · <code>5:30–9:00</code> — серо-белая.
-      </p>
     </div>
 
     <div class="settings-group">

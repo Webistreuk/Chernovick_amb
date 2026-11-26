@@ -599,3 +599,72 @@ body {
   .page-title { font-size: 1.25rem; }
   .btn { min-height: 52px; font-size: 16px; }
 }
+
+.app-user-menu {
+  position: relative;
+}
+.app-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.6rem 0.35rem 0.85rem;
+  border-radius: 999px;
+  background: var(--header-hover);
+  border: 1px solid var(--header-border);
+  font-size: 1.05rem;
+  line-height: 1.2;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--header-text);
+  transition: background var(--transition), border-color var(--transition);
+}
+.app-user:hover { background: var(--header-active); }
+.app-user-caret {
+  font-size: 0.7rem;
+  color: var(--header-muted);
+  margin-left: 0.15rem;
+  transition: transform var(--transition);
+}
+.app-user[aria-expanded="true"] .app-user-caret { transform: rotate(180deg); }
+
+.app-user-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+  padding: 0.35rem;
+  z-index: 200;
+  animation: menu-in 0.16s ease both;
+}
+.app-user-dropdown[hidden] { display: none; }
+
+.app-user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition);
+}
+.app-user-dropdown-item:hover { background: var(--bg-elev); }
+.app-user-dropdown-danger { color: var(--danger); }
+.app-user-dropdown-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 0.3rem 0.4rem;
+}
+.app-user-dropdown form { margin: 0; }

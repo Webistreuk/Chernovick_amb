@@ -282,10 +282,7 @@
   let ambulanceMarkerSelf = null;
   let refreshTimer = null;
 
-  const layerState = isAdmin
-    ? { ambulances: true, calls: true, active: false }
-    : { ambulances: true, calls: true, active: false };
-
+  const layerState = { ambulances: true, calls: true, active: false };
   let lastMapData = { calls: [], doctors: [] };
 
   function loadLayerState() {
@@ -447,26 +444,34 @@
         marker.on("dblclick", (e) => L.DomEvent.stopPropagation(e));
 
         const distText = (p.distance_km != null)
-          ? `<br>🚑 ≈ ${p.distance_km} км от скорой`
+          ? `<br>≈ ${p.distance_km} км от скорой`
+          : "";
+        const priorityHtml = p.priority_label
+          ? `<br><span class="priority-mark priority-mark-${p.priority}">${p.priority_label}</span>`
+          : "";
+        const reasonHtml = p.reason
+          ? `<strong>${p.reason}</strong><br>`
           : "";
 
         let infoHtml = `
           <div class="map-popup">
-            <strong>${p.patient_name}</strong><br>
-            ${p.address}${distText}
+            ${reasonHtml}
+            ${p.patient_name}<br>
+            ${p.address}${distText}${priorityHtml}
         `;
 
         if (userRole === 'doctor') {
           infoHtml += `<div class="map-popup-hint">Двойной клик — взять вызов</div>`;
         }
         if (p.active_owner) {
-          infoHtml += `<div class="map-popup-hint">🎯 Взят: ${p.active_owner}</div>`;
+          infoHtml += `<div class="map-popup-hint">Взят: ${p.active_owner}</div>`;
         }
         infoHtml += `</div>`;
 
         const confirmHtml = `
           <div class="map-popup map-popup-confirm">
             <strong>Взять вызов?</strong><br>
+            ${reasonHtml}
             ${p.patient_name}<br>
             ${p.address}
             <div class="map-popup-actions">
@@ -557,14 +562,14 @@
         const m = L.marker([d.lat, d.lng], { icon }).addTo(map);
         let popup = `<strong>${d.name}</strong>`;
         if (d.active_call_id) {
-          popup += `<br>🎯 На вызове #${d.active_call_id}`;
+          popup += `<br>На вызове #${d.active_call_id}`;
         } else {
           popup += `<br>Свободна`;
         }
         m.bindPopup(popup);
         ambulanceMarkers[d.login] = m;
 
-        if (d.active_call_id && (layerState.active || layerState.ambulances)) {
+        if (d.active_call_id && layerState.active) {
           const targetCall = lastMapData.calls.find(c => c.id === d.active_call_id);
           if (targetCall) {
             drawRoute(d.lat, d.lng, targetCall.lat, targetCall.lng);
@@ -612,6 +617,7 @@
   }
 
   function startGeolocation() {
+    if (userRole !== "doctor") return;
     if (!navigator.geolocation) return;
 
     navigator.geolocation.watchPosition(
@@ -627,7 +633,7 @@
             iconAnchor: [16, 16],
           });
           ambulanceMarkerSelf = L.marker([lat, lng], { icon: ambulanceIcon }).addTo(map);
-          ambulanceMarkerSelf.bindPopup("🚑 Ваше местоположение");
+          ambulanceMarkerSelf.bindPopup("Ваше местоположение");
         } else {
           ambulanceMarkerSelf.setLatLng([lat, lng]);
         }
