@@ -3,25 +3,35 @@
 .patient-fields {
   background: var(--bg-card);
   border-radius: 8px;
+  border: 2px solid var(--border);
   padding: 0 1rem;
   margin-bottom: 1rem;
 }
 .patient-field {
   display: flex;
   justify-content: space-between;
+  gap: 1rem;
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--border);
+  overflow-wrap: break-word;
 }
 .patient-field:last-child { border-bottom: none; }
 .patient-field .label { color: var(--text-muted); }
-.patient-field .value { font-weight: 600; }
+.patient-field .value { font-weight: 600; text-align: right; }
 
 .patient-alert {
-  background: #3a1a1a;
+  background: var(--notice-danger-bg);
   border-left: 4px solid var(--danger);
+  color: var(--notice-danger-text);
   padding: 0.75rem 1rem;
   border-radius: 6px;
   margin-bottom: 1rem;
+  overflow-wrap: break-word;
 }
 
 .patient-actions { margin-bottom: 1rem; }
+
+@media (max-width: 480px) {
+  .patient-field { flex-direction: column; gap: 0.25rem; }
+  .patient-field .value { text-align: left; }
+}

@@ -9,7 +9,7 @@
   <a href="/" class="btn btn-outline btn-back">← Назад к списку</a>
 
   <div class="call-card-detail
-    {% if call.is_active %}call-is-active{% endif %}
+    {% if call.is_active_for_me %}call-is-active{% endif %}
     {% if call.is_completed %}call-is-completed{% endif %}">
 
     <h1 class="page-title">{{ call.number }} — {{ call.patient_name }}</h1>
@@ -28,8 +28,12 @@
       <div class="notice {% if call.result == 'false' %}notice-danger{% else %}notice-success{% endif %}">
         {% if call.result == 'false' %}🚫 Вызов завершён как ложный{% else %}✅ Вызов завершён{% endif %}
       </div>
-    {% elif call.is_active %}
+    {% elif call.is_active_for_me %}
       <div class="notice notice-warning">🎯 Это ваш активный вызов</div>
+    {% elif call.active_owner %}
+      <div class="notice notice-warning">
+        Вызов взят фельдшером {{ call.active_owner }}
+      </div>
     {% elif active_call_id %}
       <div class="notice notice-warning">
         У вас уже активный вызов #{{ active_call_id }}. Завершите его сначала.
@@ -37,37 +41,57 @@
     {% endif %}
 
     <div class="call-actions">
+      {# Основные действия из ТЗ #}
       <a href="/patient/{{ call.patient_id }}" class="btn btn-secondary btn-block">
         👤 Карточка пациента
       </a>
 
-      {% if call.is_active %}
+      {% if current_user.role == 'doctor' and call.is_active_for_me %}
         <a href="/map/route/{{ call.id }}" class="btn btn-primary btn-block">
           🧭 Построить оптимальный маршрут по адресу {{ call.address }}
         </a>
 
-        <a href="/call/{{ call.id }}/info/new" class="btn btn-primary btn-block">
-          📝 Добавить информацию про пациента
+        <a href="/call/{{ call.id }}/case/new" class="btn btn-primary btn-block">
+          ➕ Добавить случай обслуживания
         </a>
-        <a href="/call/{{ call.id }}/problems/new" class="btn btn-primary btn-block">
-          ⚠ Проблемы на вызове
+        <a href="/call/{{ call.id }}/diary/new" class="btn btn-primary btn-block">
+          ➕ Добавить «Дневник»
         </a>
 
         <form action="/call/{{ call.id }}/complete" method="POST"
               onsubmit="return confirm('Вы уверены, что хотите завершить вызов?');">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-secondary btn-block">✅ Вызов завершён</button>
         </form>
 
         <form action="/call/{{ call.id }}/false" method="POST"
               onsubmit="return confirm('Отметить вызов как ложный?');">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-outline btn-block">🚫 Ложный вызов</button>
         </form>
-      {% elif not call.is_completed and not active_call_id %}
+
+        {# Дополнительные действия (не из ТЗ, но полезные) #}
+        <details class="call-actions-extra">
+          <summary class="btn btn-outline btn-block">Дополнительно</summary>
+          <a href="/call/{{ call.id }}/info/new" class="btn btn-outline btn-block">
+            📝 Добавить информацию про пациента
+          </a>
+          <a href="/call/{{ call.id }}/problems/new" class="btn btn-outline btn-block">
+            ⚠ Проблемы на вызове
+          </a>
+        </details>
+      {% elif current_user.role == 'doctor' and not call.is_completed and not call.active_owner and not active_call_id %}
         <form action="/call/{{ call.id }}/accept" method="POST">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-primary btn-block">Взять вызов</button>
         </form>
       {% endif %}
 
+      {% if current_user.role in ('admin', 'superadmin') %}
+        <a href="/?map=on&list=off&focus={{ call.id }}" class="btn btn-outline btn-block">
+          🗺️ Показать на карте
+        </a>
+      {% endif %}
     </div>
   </div>
 
@@ -76,17 +100,12 @@
     <ul class="record-list">
       {% for i in patient_info %}
         <li class="record-item {% if i.incorrect %}record-incorrect{% endif %}"
-            {% if not i.incorrect and call.is_active %}
+            {% if not i.incorrect and current_user.role == 'doctor' and call.is_active_for_me and i.author == current_user.login %}
               data-mark-url="/call/{{ call.id }}/info/{{ i.id }}/mark_incorrect"
             {% endif %}>
           <span class="record-time">{{ i.time }}</span> — <strong>{{ i.type }}</strong>
-          {% if i.incorrect %}
-            <span class="record-badge">❌ Некорректная</span>
-          {% endif %}
+          {% if i.incorrect %}<span class="record-badge">❌ Некорректная</span>{% endif %}
           <br>{{ i.text }}
-          {% if not i.incorrect and call.is_active %}
-            <div class="record-hint">Двойной клик — отметить как некорректную</div>
-          {% endif %}
         </li>
       {% endfor %}
     </ul>
@@ -99,17 +118,12 @@
     <ul class="record-list">
       {% for p in problems %}
         <li class="record-item {% if p.incorrect %}record-incorrect{% endif %}"
-            {% if not p.incorrect and call.is_active %}
+            {% if not p.incorrect and current_user.role == 'doctor' and call.is_active_for_me and p.author == current_user.login %}
               data-mark-url="/call/{{ call.id }}/problems/{{ p.id }}/mark_incorrect"
             {% endif %}>
           <span class="record-time">{{ p.time }}</span> — <strong>{{ p.type }}</strong>
-          {% if p.incorrect %}
-            <span class="record-badge">❌ Некорректная</span>
-          {% endif %}
+          {% if p.incorrect %}<span class="record-badge">❌ Некорректная</span>{% endif %}
           <br>{{ p.text }}
-          {% if not p.incorrect and call.is_active %}
-            <div class="record-hint">Двойной клик — отметить как некорректную</div>
-          {% endif %}
         </li>
       {% endfor %}
     </ul>

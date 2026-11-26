@@ -19,15 +19,22 @@
 
   document.querySelectorAll('form[data-offline-queue]').forEach(form => {
     form.addEventListener('submit', (e) => {
-      if (navigator.onLine) return;
+      if (navigator.onLine) return; // если онлайн, форма уходит обычным POST
 
       e.preventDefault();
-      const data = Object.fromEntries(new FormData(form));
+      
+      // Собираем данные формы, включая CSRF-токен
+      const fd = new FormData(form);
+      const data = Object.fromEntries(fd);
+      
+      // Обязательно сохраняем CSRF для будущей дозаписи
+      data._csrf = fd.get("_csrf");
+
       const queue = getQueue();
       queue.push({
         url: form.action,
         method: form.method || 'POST',
-        data,
+        data: data,
         client_id: crypto.randomUUID(),
         created_at: new Date().toISOString(),
       });
@@ -49,7 +56,14 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...item.data, client_id: item.client_id }),
         });
-        if (!res.ok) throw new Error('fail');
+        if (!res.ok) {
+            // Если сервер вернул 400 (например, протух CSRF), удаляем из очереди, чтобы не висело мертвым грузом
+            if (res.status === 400) {
+                console.warn("CSRF протух, запись отброшена", item);
+                continue; 
+            }
+            throw new Error('fail');
+        }
       } catch {
         remaining.push(item);
       }
@@ -58,6 +72,8 @@
 
     if (!remaining.length) {
       showFlash(`Отправлено ${queue.length} записей.`, 'success');
+      // Опционально: перезагрузить страницу, чтобы увидеть новые данные
+      // window.location.reload();
     } else {
       showFlash(`Не удалось отправить ${remaining.length} записей.`, 'danger');
     }

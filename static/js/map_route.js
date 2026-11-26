@@ -33,10 +33,11 @@
 
   const map = L.map(mapEl, { zoomControl: true }).setView(toLatLng, 13);
 
- L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: "© OpenStreetMap contributors © CARTO",
-}).addTo(map);
+  // OSM-тайлы напрямую с CDN
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "© OpenStreetMap contributors",
+  }).addTo(map);
 
   setTimeout(() => map.invalidateSize(), 200);
 

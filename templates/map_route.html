@@ -17,7 +17,7 @@
       Определяем ваше местоположение…
     </div>
 
-    <div id="route-map" class="route-map" style="height:60vh; min-height:400px;"></div>
+    <div id="route-map" class="route-map" style="height:60vh; min-height:400px; width:100%;"></div>
 
     <div class="route-actions">
       <button type="button" id="retry-geo-btn" class="btn btn-outline btn-block">
@@ -30,6 +30,13 @@
         🔄 Перестроить маршрут
       </button>
     </div>
+
+    <p class="route-hint">
+      Маршрут строится через публичный OSRM. Тайлы карты кэшируются
+      локально при просмотре и далее доступны без интернета.
+      Если браузер блокирует геолокацию — нажмите «Повторить запрос» или
+      укажите местоположение вручную кликом по карте.
+    </p>
   </div>
 
   <script id="route-data" type="application/json">

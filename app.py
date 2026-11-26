@@ -1,38 +1,105 @@
 import math
+import os
+import secrets
+from functools import wraps
+from datetime import datetime, timedelta
+
 from flask import (
     Flask, render_template, jsonify, request,
-    redirect, url_for, flash
+    redirect, url_for, flash, session, abort, g
 )
-from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "dev-secret-change-me"
+
+# ---------- Безопасность ----------
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False,  # True при HTTPS
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+)
 
 PER_PAGE = 5
 SEARCH_FIELDS = ("name", "address", "phone")
-
 BASE_LAT = 43.585
 BASE_LNG = 39.723
 
-ACTIVE_CALL_ID = None
-COMPLETED = {}
+# ---------- Пользователи ----------
+USERS = {
+    "doctor": {"password_hash": generate_password_hash("doctor123"), "role": "doctor", "name": "Фельдшер Иванов"},
+    "doctor2": {"password_hash": generate_password_hash("doctor123"), "role": "doctor", "name": "Фельдшер Петров"},
+    "admin": {"password_hash": generate_password_hash("admin123"), "role": "admin", "name": "Админ Сидоров"},
+    "superadmin": {"password_hash": generate_password_hash("super123"), "role": "superadmin", "name": "Главный Админ"},
+}
+
+ACTIVE_CALLS = {}   # {login: call_id}
+COMPLETED = {}      # {call_id: "normal" | "false"}
 PATIENT_INFO = []
 PROBLEMS = []
 _info_seq = 0
 _problem_seq = 0
 
+# Имитация геолокации фельдшеров (в реальном проекте - приходит с фронта)
+DOCTOR_LOCATIONS = {
+    "doctor": {"lat": 43.590, "lng": 39.720},
+    "doctor2": {"lat": 43.575, "lng": 39.740},
+}
 
+# ---------- CSRF ----------
+def csrf_token():
+    if "_csrf" not in session:
+        session["_csrf"] = secrets.token_urlsafe(32)
+    return session["_csrf"]
+
+@app.context_processor
+def inject_globals():
+    return {"csrf_token": csrf_token, "current_user": g.get("user")}
+
+def verify_csrf():
+    token = request.form.get("_csrf") or (request.get_json(silent=True) or {}).get("_csrf")
+    if not token or token != session.get("_csrf"):
+        abort(400, "Invalid CSRF token")
+
+# ---------- Декораторы ----------
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not g.get("user"):
+            return redirect(url_for("login", next=request.path))
+        return f(*args, **kwargs)
+    return wrapper
+
+def role_required(*roles):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if not g.get("user"):
+                return redirect(url_for("login", next=request.path))
+            if g.user["role"] not in roles:
+                abort(403)
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+@app.before_request
+def load_user():
+    login = session.get("user_login")
+    if login and login in USERS:
+        u = USERS[login]
+        g.user = {"login": login, "role": u["role"], "name": u["name"]}
+    else:
+        g.user = None
+
+# ---------- Вспомогательные ----------
 def haversine_km(lat1, lng1, lat2, lng2):
     R = 6371.0
     dlat = math.radians(lat2 - lat1)
     dlng = math.radians(lng2 - lng1)
-    a = (math.sin(dlat / 2) ** 2
-         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
-         * math.sin(dlng / 2) ** 2)
+    a = (math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2)
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-
-# ---------- 20 пациентов ----------
 PATIENTS = {
     1:  {"id": 1,  "name": "Иванов Иван Иванович",        "birth_date": "01.01.1966", "sex": "Мужской", "oms": "1234 5678 9012 3456", "allergies": "Пенициллин",     "phone": "+7 900 111-22-33"},
     2:  {"id": 2,  "name": "Петрова Анна Сергеевна",       "birth_date": "12.05.1990", "sex": "Женский", "oms": "9876 5432 1098 7654", "allergies": "Нет",            "phone": "+7 900 222-33-44"},
@@ -56,7 +123,6 @@ PATIENTS = {
     20: {"id": 20, "name": "Захарова Алина Максимовна",    "birth_date": "08.12.1993", "sex": "Женский", "oms": "3434 6767 8989 0101", "allergies": "Нет",            "phone": "+7 902 222-33-66"},
 }
 
-# ---------- 20 вызовов ----------
 CALLS = [
     {"id": 1,  "number": "1245", "address": "ул. Ленина 5",        "status": "critical", "patient_id": 1,  "created_at": "2026-11-20T08:15:00", "lat": 43.596226, "lng": 39.730886},
     {"id": 2,  "number": "1246", "address": "пр. Мира 12",          "status": "medium",   "patient_id": 2,  "created_at": "2026-11-20T09:40:00", "lat": 43.585525, "lng": 39.723062},
@@ -80,382 +146,372 @@ CALLS = [
     {"id": 20, "number": "1264", "address": "пр. Советский 1",      "status": "medium",   "patient_id": 20, "created_at": "2026-11-24T11:05:00", "lat": 43.582632, "lng": 39.719073},
 ]
 
-
 def enrich_call(call):
     p = PATIENTS.get(call["patient_id"], {})
-    lat = call.get("lat")
-    lng = call.get("lng")
-    dist = None
-    if lat is not None and lng is not None:
-        dist = round(haversine_km(BASE_LAT, BASE_LNG, lat, lng), 1)
+    lat, lng = call.get("lat"), call.get("lng")
+    dist = round(haversine_km(BASE_LAT, BASE_LNG, lat, lng), 1) if lat and lng else None
+    active_owner = next((login for login, cid in ACTIVE_CALLS.items() if cid == call["id"]), None)
     return {
         **call,
         "patient_name": p.get("name", "—"),
         "patient_phone": p.get("phone", "—"),
         "distance_km": dist,
-        "is_active": call["id"] == ACTIVE_CALL_ID,
         "is_completed": call["id"] in COMPLETED,
         "result": COMPLETED.get(call["id"]),
+        "active_owner": active_owner,
+        "is_active_for_me": active_owner == (g.user["login"] if g.get("user") else None),
     }
-
 
 def filter_calls(q, field):
     all_calls = [enrich_call(c) for c in CALLS]
-    if not q:
-        return all_calls
+    if not q: return all_calls
     q_low = q.lower()
-
     def match(c):
-        if field == "name":
-            return q_low in c["patient_name"].lower()
-        if field == "address":
-            return q_low in c["address"].lower()
+        if field == "name": return q_low in c["patient_name"].lower()
+        if field == "address": return q_low in c["address"].lower()
         if field == "phone":
             norm_q = "".join(ch for ch in q if ch.isdigit())
             norm_p = "".join(ch for ch in c["patient_phone"] if ch.isdigit())
-            if norm_p.startswith("7"):
-                norm_p = norm_p[1:]
+            if norm_p.startswith("7"): norm_p = norm_p[1:]
             return norm_p.startswith(norm_q)
         return False
-
     return [c for c in all_calls if match(c)]
-
 
 def paginate(all_calls, page):
     total = len(all_calls)
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
-    if page < 1:
-        page = 1
-    if page > total_pages:
-        page = total_pages
+    if page < 1: page = 1
+    if page > total_pages: page = total_pages
     start = (page - 1) * PER_PAGE
-    return {
-        "calls": all_calls[start:start + PER_PAGE],
-        "page": page,
-        "total_pages": total_pages,
-        "total": total,
-    }
-
+    return {"calls": all_calls[start:start + PER_PAGE], "page": page, "total_pages": total_pages, "total": total}
 
 def prepare_calls(q, field, view, page):
     all_calls = filter_calls(q, field)
     all_calls.sort(key=lambda c: c["created_at"], reverse=True)
-    all_calls.sort(key=lambda c: (c["is_completed"], not c["is_active"]))
-
+    all_calls.sort(key=lambda c: (c["is_completed"], not c["is_active_for_me"]))
     if view == "nearest":
         all_calls.sort(key=lambda c: (c["distance_km"] is None, c["distance_km"] or 0))
         all_calls = all_calls[:1]
         return all_calls, 1, 1, all_calls
-
     pdata = paginate(all_calls, page)
     return pdata["calls"], pdata["page"], pdata["total_pages"], all_calls
 
-
 def phone_mask_display(digits):
     template = "XXX XXX-XX-XX"
-    out = ""
-    di = 0
+    out, di = "", 0
     for ch in template:
         if ch == "X":
             out += digits[di] if di < len(digits) else "X"
             di += 1
-        else:
-            out += ch
+        else: out += ch
     return "+7 " + out
 
+# ---------- Авторизация ----------
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if g.get("user"): return redirect(url_for("calls_list"))
+    error = None
+    if request.method == "POST":
+        verify_csrf()
+        login_ = (request.form.get("login") or "").strip()
+        password = request.form.get("password") or ""
+        user = USERS.get(login_)
+        if user and check_password_hash(user["password_hash"], password):
+            session.clear()
+            session["user_login"] = login_
+            session.permanent = True
+            csrf_token()
+            flash(f"Добро пожаловать, {user['name']}", "success")
+            nxt = request.args.get("next") or url_for("calls_list")
+            return redirect(nxt)
+        error = "Неверный логин или пароль"
+    return render_template("login.html", error=error)
 
-# ---------- Список вызовов ----------
+@app.route("/logout", methods=["POST"])
+def logout():
+    verify_csrf()
+    session.clear()
+    flash("Вы вышли из системы", "info")
+    return redirect(url_for("login"))
+
+# ---------- Админ-панель ----------
+@app.route("/admin")
+@role_required("admin", "superadmin")
+def admin_panel():
+    doctors = [{"login": l, "name": u["name"], "role": u["role"], "active_call_id": ACTIVE_CALLS.get(l)} for l, u in USERS.items()]
+    stats = {
+        "completed": sum(1 for v in COMPLETED.values() if v == "normal"),
+        "false": sum(1 for v in COMPLETED.values() if v == "false"),
+        "in_progress": len([c for c in ACTIVE_CALLS.values() if c]),
+        "total": len(CALLS),
+    }
+    history = [enrich_call(c) for c in CALLS if c["id"] in COMPLETED]
+    return render_template("admin.html", doctors=doctors, stats=stats, history=history)
+
+@app.route("/admin/reset/<login>", methods=["POST"])
+@role_required("admin", "superadmin")
+def admin_reset(login):
+    verify_csrf()
+    if login in ACTIVE_CALLS:
+        ACTIVE_CALLS.pop(login, None)
+        flash(f"Активный вызов у {login} сброшен", "success")
+    else: flash(f"У {login} нет активного вызова", "info")
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/create_user", methods=["POST"])
+@role_required("admin", "superadmin")
+def admin_create_user():
+    verify_csrf()
+    login_ = (request.form.get("login") or "").strip().lower()
+    password = request.form.get("password") or ""
+    role = request.form.get("role") or "doctor"
+    name = (request.form.get("name") or "").strip()
+
+    if not login_ or not password or not name:
+        flash("Заполните все поля", "danger"); return redirect(url_for("admin_panel"))
+    if login_ in USERS:
+        flash("Пользователь с таким логином уже существует", "danger"); return redirect(url_for("admin_panel"))
+    if g.user["role"] == "admin" and role == "superadmin": abort(403)
+    if role not in ("doctor", "admin", "superadmin"): abort(400)
+
+    USERS[login_] = {"password_hash": generate_password_hash(password), "role": role, "name": name}
+    flash(f"Пользователь {login_} создан", "success")
+    return redirect(url_for("admin_panel"))
+
+# ---------- Основные маршруты ----------
 @app.route("/")
+@login_required
 def calls_list():
     page = request.args.get("page", 1, type=int) or 1
     q = (request.args.get("q") or "").strip()
     field = request.args.get("field") or "name"
     view = request.args.get("view") or "all"
     map_on = request.args.get("map") == "on"
+    list_on = request.args.get("list") == "on" or g.user["role"] == "doctor"
     accept_id = request.args.get("accept_id", type=int)
-
-    if field not in SEARCH_FIELDS:
-        field = "name"
+    focus_call = request.args.get("focus", type=int)  # для перехода "Посмотреть на карте"
+    if field not in SEARCH_FIELDS: field = "name"
 
     page_calls, page, total_pages, all_calls = prepare_calls(q, field, view, page)
-    q_display = (phone_mask_display("".join(ch for ch in q if ch.isdigit()))
-                 if field == "phone" and q else q)
+    q_display = (phone_mask_display("".join(ch for ch in q if ch.isdigit())) if field == "phone" and q else q)
+    my_active = ACTIVE_CALLS.get(g.user["login"]) if g.user["role"] == "doctor" else None
 
     return render_template(
-        "calls_list.html",
-        calls=page_calls, page=page,
-        total_pages=total_pages, total=len(all_calls),
-        q=q, q_display=q_display, field=field, view=view,
-        active_call_id=ACTIVE_CALL_ID,
-        map_on=map_on,
-        accept_id=accept_id,
+        "calls_list.html", calls=page_calls, page=page, total_pages=total_pages, total=len(all_calls),
+        q=q, q_display=q_display, field=field, view=view, active_call_id=my_active,
+        map_on=map_on, list_on=list_on, accept_id=accept_id, focus_call=focus_call,
     )
 
-
 @app.route("/search")
+@login_required
 def calls_search():
     page = request.args.get("page", 1, type=int) or 1
     q = (request.args.get("q") or "").strip()
     field = request.args.get("field") or "name"
     view = request.args.get("view") or "all"
-
-    if field not in SEARCH_FIELDS:
-        field = "name"
+    if field not in SEARCH_FIELDS: field = "name"
 
     page_calls, page, total_pages, all_calls = prepare_calls(q, field, view, page)
-    q_display = (phone_mask_display("".join(ch for ch in q if ch.isdigit()))
-                 if field == "phone" and q else q)
+    q_display = (phone_mask_display("".join(ch for ch in q if ch.isdigit())) if field == "phone" and q else q)
+    my_active = ACTIVE_CALLS.get(g.user["login"]) if g.user["role"] == "doctor" else None
 
     return render_template(
-        "_calls_results.html",
-        calls=page_calls, page=page,
-        total_pages=total_pages, total=len(all_calls),
-        q=q, q_display=q_display, field=field, view=view,
-        active_call_id=ACTIVE_CALL_ID,
+        "_calls_results.html", calls=page_calls, page=page, total_pages=total_pages, total=len(all_calls),
+        q=q, q_display=q_display, field=field, view=view, active_call_id=my_active,
     )
 
-
-@app.route("/api/map_points")
-def api_map_points():
+@app.route("/api/map_data")
+@login_required
+def api_map_data():
+    """Данные для карты: вызовы + машины скорой. Только для админов/суперадминов — расширенный набор."""
     view = request.args.get("view") or "all"
-    calls = [enrich_call(c) for c in CALLS]
+    is_admin = g.user["role"] in ("admin", "superadmin")
 
+    # 1. Вызовы (незавершённые)
+    calls = [enrich_call(c) for c in CALLS if c["id"] not in COMPLETED]
     if view == "nearest":
         calls.sort(key=lambda c: (c["distance_km"] is None, c["distance_km"] or 0))
         calls = calls[:1]
 
-    points = []
+    calls_data = []
     for c in calls:
         p = PATIENTS.get(c["patient_id"], {})
-        points.append({
-            "id": c["id"],
-            "lat": c["lat"],
-            "lng": c["lng"],
-            "patient_id": c["patient_id"],
-            "patient_name": p.get("name", "—"),
-            "address": c["address"],
-            "status": c["status"],
-            "distance_km": c["distance_km"],
-            "is_completed": c["is_completed"],
-            "result": c["result"],
+        calls_data.append({
+            "id": c["id"], "lat": c["lat"], "lng": c["lng"], "patient_id": c["patient_id"],
+            "patient_name": p.get("name", "—"), "address": c["address"], "status": c["status"],
+            "distance_km": c["distance_km"], "is_completed": c["is_completed"], "result": c["result"],
+            "active_owner": c["active_owner"],
         })
-    return jsonify(points)
 
+    # 2. Машины скорой (только для админов)
+    doctors = []
+    if is_admin:
+        for login, loc in DOCTOR_LOCATIONS.items():
+            if login not in USERS or USERS[login]["role"] != "doctor":
+                continue
+            active_call = ACTIVE_CALLS.get(login)
+            doctors.append({
+                "login": login,
+                "name": USERS[login]["name"],
+                "lat": loc["lat"],
+                "lng": loc["lng"],
+                "active_call_id": active_call,
+            })
+
+    return jsonify({"calls": calls_data, "doctors": doctors})
 
 @app.route("/call/<int:call_id>")
+@login_required
 def call_card(call_id):
     call = next((c for c in CALLS if c["id"] == call_id), None)
     if not call:
-        flash(f"Вызов #{call_id} не найден", "danger")
-        return redirect(url_for("calls_list"))
+        flash(f"Вызов #{call_id} не найден", "danger"); return redirect(url_for("calls_list"))
     call = enrich_call(call)
     info = [i for i in PATIENT_INFO if i["call_id"] == call_id]
     problems = [p for p in PROBLEMS if p["call_id"] == call_id]
-    return render_template(
-        "call_card.html",
-        call=call, patient_info=info, problems=problems,
-        active_call_id=ACTIVE_CALL_ID,
-    )
-
+    my_active = ACTIVE_CALLS.get(g.user["login"]) if g.user["role"] == "doctor" else None
+    return render_template("call_card.html", call=call, patient_info=info, problems=problems, active_call_id=my_active)
 
 @app.route("/call/<int:call_id>/accept", methods=["POST"])
+@role_required("doctor")
 def call_accept(call_id):
-    global ACTIVE_CALL_ID
+    verify_csrf()
     if call_id in COMPLETED:
-        flash("Этот вызов уже завершён.", "warning")
-        return redirect(url_for("call_card", call_id=call_id))
-    if ACTIVE_CALL_ID is not None and ACTIVE_CALL_ID != call_id:
-        flash(f"У вас уже активный вызов #{ACTIVE_CALL_ID}. Завершите его сначала.", "danger")
-        return redirect(url_for("call_card", call_id=call_id))
-    ACTIVE_CALL_ID = call_id
+        flash("Этот вызов уже завершён.", "warning"); return redirect(url_for("call_card", call_id=call_id))
+    current = ACTIVE_CALLS.get(g.user["login"])
+    if current is not None and current != call_id:
+        flash(f"У вас уже активный вызов #{current}. Завершите его сначала.", "danger"); return redirect(url_for("call_card", call_id=call_id))
+    for other_login, cid in ACTIVE_CALLS.items():
+        if cid == call_id and other_login != g.user["login"]:
+            flash("Этот вызов уже взят другим фельдшером.", "danger"); return redirect(url_for("calls_list"))
+    ACTIVE_CALLS[g.user["login"]] = call_id
     flash(f"Вызов #{call_id} принят", "success")
     return redirect(url_for("call_card", call_id=call_id))
 
-
 @app.route("/call/<int:call_id>/complete", methods=["POST"])
+@role_required("doctor")
 def call_complete(call_id):
-    global ACTIVE_CALL_ID
-    if ACTIVE_CALL_ID != call_id:
-        flash("Завершить можно только активный вызов.", "danger")
-        return redirect(url_for("call_card", call_id=call_id))
+    verify_csrf()
+    if ACTIVE_CALLS.get(g.user["login"]) != call_id:
+        flash("Завершить можно только свой активный вызов.", "danger"); return redirect(url_for("call_card", call_id=call_id))
     COMPLETED[call_id] = "normal"
-    ACTIVE_CALL_ID = None
+    ACTIVE_CALLS.pop(g.user["login"], None)
     flash(f"Вызов #{call_id} завершён", "success")
     return redirect(url_for("calls_list"))
 
-
 @app.route("/call/<int:call_id>/false", methods=["POST"])
+@role_required("doctor")
 def call_false(call_id):
-    global ACTIVE_CALL_ID
-    if ACTIVE_CALL_ID != call_id:
-        flash("Отметить ложным можно только активный вызов.", "danger")
-        return redirect(url_for("call_card", call_id=call_id))
+    verify_csrf()
+    if ACTIVE_CALLS.get(g.user["login"]) != call_id:
+        flash("Отметить ложным можно только свой активный вызов.", "danger"); return redirect(url_for("call_card", call_id=call_id))
     COMPLETED[call_id] = "false"
-    ACTIVE_CALL_ID = None
+    ACTIVE_CALLS.pop(g.user["login"], None)
     flash(f"Вызов #{call_id} отмечен как ложный", "warning")
     return redirect(url_for("calls_list"))
 
-
 @app.route("/call/<int:call_id>/info/new", methods=["GET", "POST"])
+@role_required("doctor")
 def info_new(call_id):
     global _info_seq
     call = next((c for c in CALLS if c["id"] == call_id), None)
     if not call:
-        flash("Вызов не найден", "danger")
-        return redirect(url_for("calls_list"))
-    if ACTIVE_CALL_ID != call_id:
-        flash("Информацию можно добавлять только к активному вызову.", "danger")
-        return redirect(url_for("call_card", call_id=call_id))
-
+        flash("Вызов не найден", "danger"); return redirect(url_for("calls_list"))
+    if ACTIVE_CALLS.get(g.user["login"]) != call_id:
+        flash("Информацию можно добавлять только к своему активному вызову.", "danger"); return redirect(url_for("call_card", call_id=call_id))
     if request.method == "POST":
-        data = request.get_json(silent=True) or request.form.to_dict()
+        verify_csrf()
+        data = request.form.to_dict()
         _info_seq += 1
-        PATIENT_INFO.append({
-            "id": _info_seq,
-            "call_id": call_id,
-            "type": data.get("type", ""),
-            "text": data.get("text", ""),
-            "time": datetime.now().strftime("%H:%M"),
-            "incorrect": False,
-        })
+        PATIENT_INFO.append({"id": _info_seq, "call_id": call_id, "author": g.user["login"], "type": data.get("type", ""), "text": data.get("text", ""), "time": datetime.now().strftime("%H:%M"), "incorrect": False})
         flash("Информация сохранена", "success")
         return redirect(url_for("call_card", call_id=call_id))
-
-    info_types = [
-        "Данные о здоровье пациента",
-        "Жалобы пациента",
-        "Витальные показатели",
-        "Лекарства / аллергии",
-        "Другое",
-    ]
-    return render_template(
-        "patient_info_form.html",
-        form_title=f"Информация про пациента (вызов #{call_id})",
-        form_action=f"/call/{call_id}/info/new",
-        info_types=info_types,
-        call_id=call_id,
-    )
-
+    info_types = ["Данные о здоровье пациента", "Жалобы пациента", "Витальные показатели", "Лекарства / аллергии", "Другое"]
+    return render_template("patient_info_form.html", form_title=f"Информация про пациента (вызов #{call_id})", form_action=f"/call/{call_id}/info/new", info_types=info_types, call_id=call_id)
 
 @app.route("/call/<int:call_id>/problems/new", methods=["GET", "POST"])
+@role_required("doctor")
 def problems_new(call_id):
     global _problem_seq
     call = next((c for c in CALLS if c["id"] == call_id), None)
     if not call:
-        flash("Вызов не найден", "danger")
-        return redirect(url_for("calls_list"))
-    if ACTIVE_CALL_ID != call_id:
-        flash("Проблемы можно добавлять только к активному вызову.", "danger")
-        return redirect(url_for("call_card", call_id=call_id))
-
+        flash("Вызов не найден", "danger"); return redirect(url_for("calls_list"))
+    if ACTIVE_CALLS.get(g.user["login"]) != call_id:
+        flash("Проблемы можно добавлять только к своему активному вызову.", "danger"); return redirect(url_for("call_card", call_id=call_id))
     if request.method == "POST":
-        data = request.get_json(silent=True) or request.form.to_dict()
+        verify_csrf()
+        data = request.form.to_dict()
         _problem_seq += 1
-        PROBLEMS.append({
-            "id": _problem_seq,
-            "call_id": call_id,
-            "type": data.get("type", ""),
-            "text": data.get("text", ""),
-            "time": datetime.now().strftime("%H:%M"),
-            "incorrect": False,
-        })
+        PROBLEMS.append({"id": _problem_seq, "call_id": call_id, "author": g.user["login"], "type": data.get("type", ""), "text": data.get("text", ""), "time": datetime.now().strftime("%H:%M"), "incorrect": False})
         flash("Проблема зафиксирована", "success")
         return redirect(url_for("call_card", call_id=call_id))
-
-    problem_types = [
-        "Проблемы с автомобилем",
-        "Проблемы с пациентом",
-        "Другое",
-    ]
-    return render_template(
-        "problems_form.html",
-        form_title=f"Проблемы на вызове #{call_id}",
-        form_action=f"/call/{call_id}/problems/new",
-        problem_types=problem_types,
-        call_id=call_id,
-    )
-
+    problem_types = ["Проблемы с автомобилем", "Проблемы с пациентом", "Другое"]
+    return render_template("problems_form.html", form_title=f"Проблемы на вызове #{call_id}", form_action=f"/call/{call_id}/problems/new", problem_types=problem_types, call_id=call_id)
 
 @app.route("/call/<int:call_id>/info/<int:info_id>/mark_incorrect", methods=["POST"])
+@role_required("doctor")
 def info_mark_incorrect(call_id, info_id):
-    if ACTIVE_CALL_ID != call_id:
-        flash("Отмечать можно только записи активного вызова.", "danger")
-        return redirect(url_for("call_card", call_id=call_id))
+    verify_csrf()
     rec = next((r for r in PATIENT_INFO if r["id"] == info_id and r["call_id"] == call_id), None)
-    if not rec:
-        flash("Запись не найдена", "danger")
-        return redirect(url_for("call_card", call_id=call_id))
+    if not rec: flash("Запись не найдена", "danger"); return redirect(url_for("call_card", call_id=call_id))
+    if rec.get("author") != g.user["login"]: abort(403)
     rec["incorrect"] = True
     flash("Запись отмечена как некорректная", "warning")
     return redirect(url_for("call_card", call_id=call_id))
 
-
 @app.route("/call/<int:call_id>/problems/<int:problem_id>/mark_incorrect", methods=["POST"])
+@role_required("doctor")
 def problem_mark_incorrect(call_id, problem_id):
-    if ACTIVE_CALL_ID != call_id:
-        flash("Отмечать можно только записи активного вызова.", "danger")
-        return redirect(url_for("call_card", call_id=call_id))
+    verify_csrf()
     rec = next((r for r in PROBLEMS if r["id"] == problem_id and r["call_id"] == call_id), None)
-    if not rec:
-        flash("Запись не найдена", "danger")
-        return redirect(url_for("call_card", call_id=call_id))
+    if not rec: flash("Запись не найдена", "danger"); return redirect(url_for("call_card", call_id=call_id))
+    if rec.get("author") != g.user["login"]: abort(403)
     rec["incorrect"] = True
     flash("Проблема отмечена как некорректная", "warning")
     return redirect(url_for("call_card", call_id=call_id))
 
-
 APPOINTMENTS = []
 
-
 @app.route("/patient/<int:patient_id>")
+@login_required
 def patient_card(patient_id):
     patient = PATIENTS.get(patient_id)
     if not patient:
-        flash(f"Пациент #{patient_id} не найден", "danger")
-        return render_template("patient_card.html", patient=None, appointments=[])
+        flash(f"Пациент #{patient_id} не найден", "danger"); return render_template("patient_card.html", patient=None, appointments=[])
     appointments = [a for a in APPOINTMENTS if a["patient_id"] == patient_id]
     return render_template("patient_card.html", patient=patient, appointments=appointments)
 
-
 @app.route("/patient/<int:patient_id>/appointment/new", methods=["GET", "POST"])
+@login_required
 def appointment_new(patient_id):
     if request.method == "POST":
-        data = request.get_json(silent=True) or request.form.to_dict()
-        APPOINTMENTS.append({
-            "patient_id": patient_id,
-            "text": data.get("text", ""),
-            "time": datetime.now().strftime("%H:%M"),
-        })
+        verify_csrf()
+        data = request.form.to_dict()
+        APPOINTMENTS.append({"patient_id": patient_id, "text": data.get("text", ""), "time": datetime.now().strftime("%H:%M")})
         flash("Запись на приём сохранена", "success")
         return redirect(url_for("patient_card", patient_id=patient_id))
-    return render_template("form.html",
-                           form_title=f"Запись на приём (пациент #{patient_id})",
-                           form_action=f"/patient/{patient_id}/appointment/new")
-
+    return render_template("form.html", form_title=f"Запись на приём (пациент #{patient_id})", form_action=f"/patient/{patient_id}/appointment/new")
 
 @app.route("/map/route/<int:call_id>")
+@login_required
 def map_route(call_id):
     call = next((c for c in CALLS if c["id"] == call_id), None)
     if not call:
-        flash(f"Вызов #{call_id} не найден", "danger")
-        return redirect(url_for("calls_list"))
+        flash(f"Вызов #{call_id} не найден", "danger"); return redirect(url_for("calls_list"))
+    # Для админов: перенаправляем на главную с фокусом на карте
+    if g.user["role"] in ("admin", "superadmin"):
+        return redirect(url_for("calls_list", map="on", focus=call_id, list="off"))
     return render_template("map_route.html", call=enrich_call(call))
 
-
-@app.route("/api/case", methods=["POST"])
-def api_case():
-    data = request.get_json() or request.form.to_dict()
-    return jsonify({"ok": True, "client_id": data.get("client_id")})
-
-
+@app.errorhandler(400)
+def bad_request(e): return render_template("error.html", code=400, message="Некорректный запрос"), 400
+@app.errorhandler(403)
+def forbidden(e): return render_template("error.html", code=403, message="Нет доступа"), 403
 @app.errorhandler(404)
 def not_found(e):
-    path = request.path
-    if path.startswith(("/api/", "/static/")):
-        return ("Not Found", 404)
+    if request.path.startswith(("/api/", "/static/")): return ("Not Found", 404)
     flash("Страница не найдена", "warning")
     return redirect(url_for("calls_list"))
-
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000, threaded=True)

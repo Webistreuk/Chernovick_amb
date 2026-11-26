@@ -2,22 +2,184 @@
 <html lang="ru" data-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
   <title>{% block title %}Скорая{% endblock %}</title>
+
+  <script>
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('app_settings_v1') || '{}');
+        var theme = s.theme || 'dark';
+        if (s.autoTheme) {
+          var d = new Date();
+          var mins = d.getHours() * 60 + d.getMinutes();
+          if (mins >= 540 && mins < 1020) theme = 'light';
+          else if (mins >= 1020 && mins < 1260) theme = 'gray';
+          else if (mins >= 1260 || mins < 330) theme = 'dark';
+          else theme = 'gray';
+        }
+        document.documentElement.dataset.theme = theme;
+        if (s.fontSize) document.documentElement.dataset.fontSize = s.fontSize;
+        if (s.largeControls) document.documentElement.dataset.largeControls = 'true';
+        if (s.highContrast) document.documentElement.dataset.contrast = 'high';
+      } catch (e) {}
+    })();
+  </script>
+
   <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
   {% block css %}{% endblock %}
 </head>
 <body>
-  <header class="app-header">
-    <a class="app-brand" href="/">🚑 Скорая</a>
-    <span id="net-status" class="net-badge net-online">🟢 Онлайн</span>
-  </header>
+  <div class="app-scale">
+    <header class="app-header">
+      <div class="app-header-left">
+        <button id="settings-btn" class="app-nav-link" type="button"
+                aria-label="Настройки" title="Настройки">
+          <span aria-hidden="true">⚙</span> <span class="label">Настройки</span>
+        </button>
 
-  <div id="flash-area" class="flash-area"></div>
+        {% if current_user %}
+          <form method="POST" action="{{ url_for('logout') }}" style="display:inline">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="app-nav-link" type="submit" title="Выйти">
+              <span aria-hidden="true">↩</span> <span class="label">Выйти</span>
+            </button>
+          </form>
+        {% endif %}
 
-  <main class="app-main">
-    {% block content %}{% endblock %}
-  </main>
+        <span id="app-clock" class="app-clock" hidden>--:--:--</span>
+      </div>
+
+      <div class="app-header-right">
+        {% if current_user %}
+          <nav class="app-nav" aria-label="Основная навигация">
+            {% if current_user.role in ('admin', 'superadmin') %}
+              {% if request.path.startswith('/admin') %}
+                <a class="app-nav-link active" href="/" title="На главную">
+                  <span aria-hidden="true">🏠</span> <span class="label">На главную</span>
+                </a>
+              {% else %}
+                <a class="app-nav-link" href="{{ url_for('admin_panel') }}">
+                  <span aria-hidden="true">🛡</span> <span class="label">Админ-панель</span>
+                </a>
+              {% endif %}
+            {% endif %}
+
+            <a class="app-nav-link"
+               href="{{ doctor_portal_url or '#' }}"
+               target="_blank" rel="noopener noreferrer">
+              <span aria-hidden="true">🩺</span> <span class="label">Портал врача</span>
+            </a>
+          </nav>
+
+          <span class="app-nav-divider" aria-hidden="true"></span>
+
+          <div class="app-user" title="{{ current_user.name }}">
+            <span class="app-user-info">
+              <span class="app-user-name">{{ current_user.name }}</span>
+              <span class="app-user-role">
+                {% if current_user.role == 'superadmin' %}Главный админ
+                {% elif current_user.role == 'admin' %}Админ
+                {% else %}Фельдшер{% endif %}
+              </span>
+            </span>
+            <span class="app-user-avatar" aria-hidden="true">
+              {{ current_user.name[:1]|upper }}
+            </span>
+          </div>
+        {% endif %}
+
+        <span id="net-status" class="net-badge net-online">
+          <span>Онлайн</span>
+        </span>
+      </div>
+    </header>
+
+    <div id="flash-area" class="flash-area">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="notice notice-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+    </div>
+
+    <main class="app-main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <div id="settings-overlay" class="settings-overlay"></div>
+  <aside id="settings-panel" class="settings-panel" aria-hidden="true" aria-label="Настройки">
+    <div class="settings-header">
+      <h2 class="settings-title">Настройки</h2>
+      <button id="settings-close" class="settings-close" type="button"
+              aria-label="Закрыть">✕</button>
+    </div>
+
+    <div class="settings-group">
+      <span class="settings-label">Тема</span>
+      <div class="settings-options">
+        <button type="button" class="btn btn-outline" data-theme-set="light">Светлая</button>
+        <button type="button" class="btn btn-outline" data-theme-set="gray">Серо-белая</button>
+        <button type="button" class="btn btn-outline" data-theme-set="dark">Тёмная</button>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <span class="settings-label">Размер текста</span>
+      <div class="settings-options">
+        <button type="button" class="btn btn-outline" data-size-set="1">1x</button>
+        <button type="button" class="btn btn-outline" data-size-set="1.2">1.2x</button>
+        <button type="button" class="btn btn-outline" data-size-set="1.5">1.5x</button>
+        <button type="button" class="btn btn-outline" data-size-set="2">2x</button>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <span class="settings-label">Часы</span>
+      <label class="settings-toggle">
+        <input type="checkbox" id="set-clock">
+        <span class="settings-toggle-text">Показывать часы в шапке</span>
+      </label>
+      <label class="settings-toggle">
+        <input type="checkbox" id="set-clock-seconds">
+        <span class="settings-toggle-text">Показывать секунды</span>
+      </label>
+      <p class="settings-hint">Время берётся из устройства. Формат 24-часовой.</p>
+    </div>
+
+    <div class="settings-group">
+      <span class="settings-label">Экран (авто-тема)</span>
+      <label class="settings-toggle">
+        <input type="checkbox" id="set-auto-theme">
+        <span class="settings-toggle-text">Автоматически менять тему по времени</span>
+      </label>
+      <p class="settings-hint">
+        <code>9:00–17:00</code> — светлая · <code>17:00–21:00</code> — серо-белая ·
+        <code>21:00–5:30</code> — тёмная · <code>5:30–9:00</code> — серо-белая.
+      </p>
+    </div>
+
+    <div class="settings-group">
+      <span class="settings-label">Дополнительно</span>
+      <label class="settings-toggle">
+        <input type="checkbox" id="set-large-controls">
+        <span class="settings-toggle-text">Крупные кнопки и поля</span>
+      </label>
+      <label class="settings-toggle">
+        <input type="checkbox" id="set-high-contrast">
+        <span class="settings-toggle-text">Высокий контраст</span>
+      </label>
+    </div>
+
+    <div class="settings-group">
+      <button type="button" id="set-reset" class="btn btn-outline btn-block">
+        Сбросить настройки
+      </button>
+    </div>
+  </aside>
 
   <script src="{{ url_for('static', filename='js/base.js') }}"></script>
   {% block js %}{% endblock %}

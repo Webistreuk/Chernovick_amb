@@ -6,7 +6,9 @@
 {% endblock %}
 
 {% block content %}
-  <a href="javascript:history.back()" class="btn btn-outline btn-back">← Назад к вызову</a>
+  {# «Назад к вызову» — по ТЗ. history.back() возвращает на карточку вызова #}
+  <a href="javascript:history.back()" class="btn btn-outline btn-back"
+     aria-label="Назад к вызову">← Назад к вызову</a>
 
   {% if patient %}
     <div class="patient-header">
