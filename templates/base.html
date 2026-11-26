@@ -24,6 +24,7 @@
         if (s.fontSize) document.documentElement.dataset.fontSize = s.fontSize;
         if (s.largeControls) document.documentElement.dataset.largeControls = 'true';
         if (s.highContrast) document.documentElement.dataset.contrast = 'high';
+        document.documentElement.dataset.uiMode = s.uiMode || 'advanced';
       } catch (e) {}
     })();
   </script>
@@ -123,6 +124,14 @@
     <div class="settings-header">
       <h2 class="settings-title">Настройки</h2>
       <button id="settings-close" class="settings-close" type="button" aria-label="Закрыть">✕</button>
+    </div>
+
+    <div class="settings-group">
+      <span class="settings-label">Режим интерфейса</span>
+      <div class="settings-options">
+        <button type="button" class="btn btn-outline" data-uimode-set="simple">Простой</button>
+        <button type="button" class="btn btn-outline" data-uimode-set="advanced">Продвинутый</button>
+      </div>
     </div>
 
     <div class="settings-group">

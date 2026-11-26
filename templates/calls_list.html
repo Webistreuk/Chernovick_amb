@@ -49,26 +49,43 @@
     </div>
   {% endif %}
 
-  <div class="page-head">
-    <div class="page-actions">
-      <button type="button" id="map-toggle-btn" class="btn btn-outline">
-        🗺️ Карта <span class="map-toggle-state">[off]</span>
+  <div class="page-actions">
+    <button type="button" id="map-toggle-btn" class="btn btn-outline">
+      🗺️ Карта <span class="map-toggle-state">[off]</span>
+    </button>
+
+    {% if current_user.role in ('admin', 'superadmin') %}
+      <button type="button" id="list-toggle-btn" class="btn btn-outline">
+        📋 Показать список вызовов <span class="list-toggle-state">[{{ 'on' if list_on else 'off' }}]</span>
       </button>
+    {% endif %}
 
-      {% if current_user.role in ('admin', 'superadmin') %}
-        <button type="button" id="list-toggle-btn" class="btn btn-outline">
-          📋 Показать список вызовов <span class="list-toggle-state">[{{ 'on' if list_on else 'off' }}]</span>
-        </button>
-      {% endif %}
+    {% if current_user.role == 'doctor' %}
+      <button type="button" id="sort-distance-btn"
+              class="btn btn-outline {% if view == 'nearest' %}btn-active{% endif %}">
+        📍 Ближайший вызов
+      </button>
+    {% endif %}
 
-      {% if current_user.role == 'doctor' %}
-        <button type="button" id="sort-distance-btn"
-                class="btn btn-outline {% if view == 'nearest' %}btn-active{% endif %}">
-          📍 Ближайший вызов
-        </button>
-      {% endif %}
+    <a href="/" id="refresh-btn" class="btn btn-outline">🔄 Обновить</a>
+  </div>
 
-      <a href="/" id="refresh-btn" class="btn btn-outline">🔄 Обновить</a>
+  <div class="filters-bar">
+    <div class="filter-group">
+      <span class="filter-label">Тяжесть:</span>
+      <select name="priority" id="filter-priority" class="filter-select">
+        <option value="">Все</option>
+        <option value="emergency" {% if request.args.get('priority') == 'emergency' %}selected{% endif %}>Экстренный</option>
+        <option value="urgent" {% if request.args.get('priority') == 'urgent' %}selected{% endif %}>Срочный</option>
+        <option value="planned" {% if request.args.get('priority') == 'planned' %}selected{% endif %}>Плановый</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Новизна:</span>
+      <select name="sort" id="filter-sort" class="filter-select">
+        <option value="newest" {% if request.args.get('sort') == 'newest' %}selected{% endif %}>Сначала новые</option>
+        <option value="oldest" {% if request.args.get('sort') == 'oldest' %}selected{% endif %}>Сначала старые</option>
+      </select>
     </div>
   </div>
 
@@ -195,10 +212,23 @@
     (function () {
       const bg = document.getElementById("home-bg-video");
       if (bg) {
-        bg.playbackRate = 0.09;
-        bg.addEventListener("play", () => { bg.playbackRate = 0.09; });
-        bg.addEventListener("loadedmetadata", () => { bg.playbackRate = 0.09; });
+        bg.playbackRate = 0.5;
+        bg.addEventListener("play", () => { bg.playbackRate = 0.5; });
+        bg.addEventListener("loadedmetadata", () => { bg.playbackRate = 0.5; });
       }
+      
+      const prioritySelect = document.getElementById("filter-priority");
+      const sortSelect = document.getElementById("filter-sort");
+      
+      function applyFilters() {
+        const url = new URL(window.location.href);
+        url.searchParams.set("priority", prioritySelect.value);
+        url.searchParams.set("sort", sortSelect.value);
+        window.location.href = url.toString();
+      }
+      
+      if (prioritySelect) prioritySelect.addEventListener("change", applyFilters);
+      if (sortSelect) sortSelect.addEventListener("change", applyFilters);
     })();
   </script>
 {% endblock %}

@@ -23,6 +23,22 @@
         </p>
       {% elif call.is_active_for_me %}
         <p class="call-badge call-badge-active">Ваш активный вызов</p>
+        {% if current_user.role in ('admin', 'superadmin') %}
+        <div class="call-timestamps">
+          <div class="timestamp-item">
+            <span class="timestamp-label">Создан</span>
+            <span class="timestamp-value">{{ call.created_at|default('—') }}</span>
+          </div>
+          <div class="timestamp-item">
+            <span class="timestamp-label">Принят</span>
+            <span class="timestamp-value">{{ call.accepted_at|default('—') }}</span>
+          </div>
+          <div class="timestamp-item">
+            <span class="timestamp-label">Выполнен</span>
+            <span class="timestamp-value">{{ call.completed_at|default('—') }}</span>
+          </div>
+        </div>
+        {% endif %}
         <a href="/call/{{ call.id }}" class="btn btn-primary btn-block">Открыть вызов</a>
       {% elif call.active_owner %}
         <p class="call-badge call-badge-completed">Взят: {{ call.active_owner }}</p>

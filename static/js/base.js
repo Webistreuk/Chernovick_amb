@@ -168,6 +168,7 @@
     autoTheme: false,
     largeControls: false,
     highContrast: false,
+    uiMode: "advanced",
   };
 
   let settings = loadSettings();
@@ -201,6 +202,7 @@
     html.dataset.fontSize = settings.fontSize;
     html.dataset.largeControls = settings.largeControls ? "true" : "false";
     html.dataset.contrast = settings.highContrast ? "high" : "normal";
+    html.dataset.uiMode = settings.uiMode || "advanced";
 
     document.querySelectorAll("[data-theme-set]").forEach((b) => {
       const isActive = !settings.autoTheme && b.dataset.themeSet === settings.theme;
@@ -211,6 +213,12 @@
 
     document.querySelectorAll("[data-size-set]").forEach((b) => {
       const isActive = b.dataset.sizeSet === settings.fontSize;
+      b.classList.toggle("btn-active", isActive);
+      b.classList.toggle("btn-outline", !isActive);
+    });
+
+    document.querySelectorAll("[data-uimode-set]").forEach((b) => {
+      const isActive = b.dataset.uimodeSet === (settings.uiMode || "advanced");
       b.classList.toggle("btn-active", isActive);
       b.classList.toggle("btn-outline", !isActive);
     });
@@ -302,6 +310,14 @@
   document.querySelectorAll("[data-size-set]").forEach((b) => {
     b.addEventListener("click", () => {
       settings.fontSize = b.dataset.sizeSet;
+      saveSettings();
+      applySettings();
+    });
+  });
+
+  document.querySelectorAll("[data-uimode-set]").forEach((b) => {
+    b.addEventListener("click", () => {
+      settings.uiMode = b.dataset.uimodeSet;
       saveSettings();
       applySettings();
     });
