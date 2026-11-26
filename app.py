@@ -39,10 +39,12 @@ PATIENT_INFO = []
 PROBLEMS = []
 CASES = []
 DIARY = []
+APPOINTMENTS = []
 _info_seq = 0
 _problem_seq = 0
 _case_seq = 0
 _diary_seq = 0
+_appt_seq = 0
 
 DOCTOR_LOCATIONS = {
     "doctor": {"lat": 43.590, "lng": 39.720},
@@ -687,9 +689,6 @@ def problem_mark_incorrect(call_id, problem_id):
     return redirect(url_for("call_card", call_id=call_id))
 
 
-APPOINTMENTS = []
-
-
 @app.route("/patient/<int:patient_id>")
 @login_required
 def patient_card(patient_id):
@@ -704,19 +703,37 @@ def patient_card(patient_id):
 @app.route("/patient/<int:patient_id>/appointment/new", methods=["GET", "POST"])
 @login_required
 def appointment_new(patient_id):
+    global _appt_seq
+    patient = PATIENTS.get(patient_id)
+    if not patient:
+        flash(f"Пациент #{patient_id} не найден", "danger")
+        return redirect(url_for("calls_list"))
+
     if request.method == "POST":
         verify_csrf()
         data = request.form.to_dict()
+        _appt_seq += 1
         APPOINTMENTS.append({
-            "patient_id": patient_id, "text": data.get("text", ""),
-            "time": datetime.now().strftime("%H:%M"),
+            "id": _appt_seq,
+            "patient_id": patient_id,
+            "date": data.get("date", ""),
+            "time": data.get("time", ""),
+            "doctor": data.get("doctor", ""),
+            "note": data.get("note", ""),
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "created_by": g.user["login"],
         })
         flash("Запись на приём сохранена", "success")
         return redirect(url_for("patient_card", patient_id=patient_id))
+
+    now = datetime.now()
     return render_template(
-        "form.html",
+        "appointment_form.html",
         form_title=f"Запись на приём (пациент #{patient_id})",
         form_action=f"/patient/{patient_id}/appointment/new",
+        patient_id=patient_id,
+        today=now.strftime("%Y-%m-%d"),
+        default_time=now.strftime("%H:%M"),
     )
 
 

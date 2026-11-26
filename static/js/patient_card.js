@@ -1,9 +1,7 @@
 (function () {
-  const appointmentBtn = document.getElementById('appointment-btn');
-  if (!appointmentBtn) return;
-
-  appointmentBtn.addEventListener('click', () => {
-    appointmentBtn.classList.add('disabled');
-    setTimeout(() => appointmentBtn.classList.remove('disabled'), 1500);
+  const btn = document.getElementById("appointment-btn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    btn.classList.add("is-loading");
   });
 })();

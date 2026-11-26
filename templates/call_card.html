@@ -66,8 +66,12 @@
     {% endif %}
 
     {% if current_user.role == 'doctor' and call.is_active_for_me %}
-      <section class="form-section">
-        <h2 class="form-section-title">Этап бригады</h2>
+
+      <section class="form-section form-section-stage">
+        <div class="stage-head">
+          <h2 class="form-section-title">Этап бригады</h2>
+          <span class="stage-current-label">{{ call.status_label }}</span>
+        </div>
         <ol class="stages">
           <li class="stage {% if call.status_progress in (None, 'accepted') %}stage-current{% endif %}">Принят</li>
           <li class="stage {% if call.status_progress == 'en_route' %}stage-current{% endif %}">В пути</li>
@@ -92,95 +96,117 @@
         </div>
       </section>
 
-      <section class="form-section">
-        <h2 class="form-section-title">Информация про пациента</h2>
-        {% if patient_info %}
-          <ul class="record-list">
-            {% for i in patient_info %}
-              <li class="record-item {% if i.incorrect %}record-incorrect{% endif %}"
-                  {% if not i.incorrect and i.author == current_user.login %}
-                    data-mark-url="/call/{{ call.id }}/info/{{ i.id }}/mark_incorrect"
-                  {% endif %}>
-                <span class="record-time">{{ i.time }}</span>
-                <span class="record-type">{{ i.type }}</span>
-                {% if i.incorrect %}<span class="record-mark">некорректно</span>{% endif %}
-                <div class="record-text">{{ i.text }}</div>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="record-empty">Нет записей</p>
-        {% endif %}
-        <div class="form-actions-row">
-          <a class="btn btn-outline" href="/call/{{ call.id }}/info/new">Добавить информацию</a>
-        </div>
+      <section class="form-section form-section-records">
+        <details class="record-group" {% if patient_info %}open{% endif %}>
+          <summary class="record-group-head">
+            <span class="record-group-title">Информация про пациента</span>
+            <span class="record-group-count">{{ patient_info|length }}</span>
+          </summary>
+          <div class="record-group-body">
+            {% if patient_info %}
+              <ul class="record-list">
+                {% for i in patient_info %}
+                  <li class="record-item {% if i.incorrect %}record-incorrect{% endif %}"
+                      {% if not i.incorrect and i.author == current_user.login %}
+                        data-mark-url="/call/{{ call.id }}/info/{{ i.id }}/mark_incorrect"
+                      {% endif %}>
+                    <span class="record-time">{{ i.time }}</span>
+                    <span class="record-type">{{ i.type }}</span>
+                    {% if i.incorrect %}<span class="record-mark">некорректно</span>{% endif %}
+                    <div class="record-text">{{ i.text }}</div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="record-empty">Нет записей</p>
+            {% endif %}
+            <div class="form-actions-row">
+              <a class="btn btn-outline" href="/call/{{ call.id }}/info/new">Добавить информацию</a>
+            </div>
+          </div>
+        </details>
+
+        <details class="record-group" {% if problems %}open{% endif %}>
+          <summary class="record-group-head">
+            <span class="record-group-title">Проблемы на вызове</span>
+            <span class="record-group-count">{{ problems|length }}</span>
+          </summary>
+          <div class="record-group-body">
+            {% if problems %}
+              <ul class="record-list">
+                {% for p in problems %}
+                  <li class="record-item {% if p.incorrect %}record-incorrect{% endif %}"
+                      {% if not p.incorrect and p.author == current_user.login %}
+                        data-mark-url="/call/{{ call.id }}/problems/{{ p.id }}/mark_incorrect"
+                      {% endif %}>
+                    <span class="record-time">{{ p.time }}</span>
+                    <span class="record-type">{{ p.type }}</span>
+                    {% if p.incorrect %}<span class="record-mark">некорректно</span>{% endif %}
+                    <div class="record-text">{{ p.text }}</div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="record-empty">Проблем не зафиксировано</p>
+            {% endif %}
+            <div class="form-actions-row">
+              <a class="btn btn-outline" href="/call/{{ call.id }}/problems/new">Добавить проблему</a>
+            </div>
+          </div>
+        </details>
+
+        <details class="record-group" {% if cases %}open{% endif %}>
+          <summary class="record-group-head">
+            <span class="record-group-title">Случаи обслуживания</span>
+            <span class="record-group-count">{{ cases|length }}</span>
+          </summary>
+          <div class="record-group-body">
+            {% if cases %}
+              <ul class="record-list">
+                {% for c in cases %}
+                  <li class="record-item">
+                    <span class="record-time">{{ c.time }}</span>
+                    <span class="record-type">{{ c.type }}</span>
+                    <div class="record-text">{{ c.text }}</div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="record-empty">Случаев пока нет</p>
+            {% endif %}
+            <div class="form-actions-row">
+              <a class="btn btn-outline" href="/call/{{ call.id }}/case/new">Добавить случай</a>
+            </div>
+          </div>
+        </details>
+
+        <details class="record-group" {% if diary %}open{% endif %}>
+          <summary class="record-group-head">
+            <span class="record-group-title">Дневник</span>
+            <span class="record-group-count">{{ diary|length }}</span>
+          </summary>
+          <div class="record-group-body">
+            {% if diary %}
+              <ul class="record-list">
+                {% for d in diary %}
+                  <li class="record-item">
+                    <span class="record-time">{{ d.time }}</span>
+                    <span class="record-type">{{ d.type }}</span>
+                    <div class="record-text">{{ d.text }}</div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="record-empty">Записей нет</p>
+            {% endif %}
+            <div class="form-actions-row">
+              <a class="btn btn-outline" href="/call/{{ call.id }}/diary/new">Добавить в дневник</a>
+            </div>
+          </div>
+        </details>
       </section>
 
-      <section class="form-section">
-        <h2 class="form-section-title">Проблемы на вызове</h2>
-        {% if problems %}
-          <ul class="record-list">
-            {% for p in problems %}
-              <li class="record-item {% if p.incorrect %}record-incorrect{% endif %}"
-                  {% if not p.incorrect and p.author == current_user.login %}
-                    data-mark-url="/call/{{ call.id }}/problems/{{ p.id }}/mark_incorrect"
-                  {% endif %}>
-                <span class="record-time">{{ p.time }}</span>
-                <span class="record-type">{{ p.type }}</span>
-                {% if p.incorrect %}<span class="record-mark">некорректно</span>{% endif %}
-                <div class="record-text">{{ p.text }}</div>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="record-empty">Проблем не зафиксировано</p>
-        {% endif %}
-        <div class="form-actions-row">
-          <a class="btn btn-outline" href="/call/{{ call.id }}/problems/new">Добавить проблему</a>
-        </div>
-      </section>
-
-      <section class="form-section">
-        <h2 class="form-section-title">Случаи обслуживания</h2>
-        {% if cases %}
-          <ul class="record-list">
-            {% for c in cases %}
-              <li class="record-item">
-                <span class="record-time">{{ c.time }}</span>
-                <span class="record-type">{{ c.type }}</span>
-                <div class="record-text">{{ c.text }}</div>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="record-empty">Случаев пока нет</p>
-        {% endif %}
-        <div class="form-actions-row">
-          <a class="btn btn-outline" href="/call/{{ call.id }}/case/new">Добавить случай</a>
-        </div>
-      </section>
-
-      <section class="form-section">
-        <h2 class="form-section-title">Дневник</h2>
-        {% if diary %}
-          <ul class="record-list">
-            {% for d in diary %}
-              <li class="record-item">
-                <span class="record-time">{{ d.time }}</span>
-                <span class="record-type">{{ d.type }}</span>
-                <div class="record-text">{{ d.text }}</div>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="record-empty">Записей нет</p>
-        {% endif %}
-        <div class="form-actions-row">
-          <a class="btn btn-outline" href="/call/{{ call.id }}/diary/new">Добавить в дневник</a>
-        </div>
-      </section>
-
-      <section class="form-section">
+      <section class="form-section form-section-finish">
         <h2 class="form-section-title">Завершение</h2>
         <div class="form-actions-row">
           <form action="/call/{{ call.id }}/complete" method="POST"

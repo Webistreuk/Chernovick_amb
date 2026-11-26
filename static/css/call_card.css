@@ -133,6 +133,23 @@
 .form-actions-row form { margin: 0; }
 .form-actions-row .btn { margin-bottom: 0; }
 
+.form-section-stage { background: var(--bg-elev); }
+.stage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.stage-head .form-section-title { margin-bottom: 0; }
+.stage-current-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
 .stages {
   list-style: none;
   margin: 0 0 0.75rem;
@@ -142,6 +159,7 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
+  background: var(--bg-card);
 }
 .stage {
   flex: 1;
@@ -160,6 +178,55 @@
   font-weight: 600;
 }
 
+.form-section-records { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+.record-group {
+  border-bottom: 1px solid var(--border);
+}
+.record-group:last-child { border-bottom: none; }
+.record-group > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 0.1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  user-select: none;
+  transition: color var(--transition);
+}
+.record-group > summary::-webkit-details-marker { display: none; }
+.record-group > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  color: var(--text-muted);
+  transition: transform var(--transition);
+}
+.record-group[open] > summary::before { transform: rotate(90deg); }
+.record-group > summary:hover { color: var(--primary); }
+
+.record-group-title { flex: 1; }
+.record-group-count {
+  display: inline-block;
+  min-width: 1.6rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-group-body {
+  padding: 0 0 0.6rem 1.1rem;
+}
+
 .record-list {
   list-style: none;
   margin: 0;
@@ -167,7 +234,7 @@
   border-top: 1px solid var(--border);
 }
 .record-item {
-  padding: 0.6rem 0.25rem;
+  padding: 0.6rem 0.1rem;
   border-bottom: 1px solid var(--border);
   font-size: 0.95rem;
   line-height: 1.45;
@@ -200,21 +267,20 @@
   text-transform: uppercase;
   color: var(--danger);
 }
-
 .record-item.record-incorrect .record-type {
   text-decoration: line-through;
   color: var(--text-muted);
 }
-.record-item.record-incorrect .record-text {
-  color: var(--text-muted);
-}
+.record-item.record-incorrect .record-text { color: var(--text-muted); }
 
 .record-empty {
   margin: 0;
-  padding: 0.6rem 0.25rem;
+  padding: 0.6rem 0.1rem;
   color: var(--text-muted);
   font-size: 0.9rem;
 }
+
+.form-section-finish { background: var(--bg-elev); }
 
 @media (max-width: 640px) {
   .form-card-head { padding: 0.85rem 1rem; }
